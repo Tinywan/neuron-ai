@@ -15,6 +15,7 @@ use NeuronAI\Exceptions\ToolRunsExceededException;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\HasRunKey;
+use NeuronAI\Tools\InterruptableTool;
 use NeuronAI\Tools\ToolInterface;
 use Spatie\Fork\Fork;
 use Closure;
@@ -46,6 +47,20 @@ class ParallelToolNode extends ToolNode
         // Fallback to sequential execution if spatie/fork is not installed
         if (!class_exists(Fork::class)) {
             return yield from parent::executeTools($toolCallMessage, $state);
+        }
+
+        // Interruptable tools must run sequentially: the ToolInterrupt they throw
+        // has to propagate in the parent process to be translated into a workflow
+        // interruption, which cannot happen inside a forked child. Resume also
+        // requires the sequential path.
+        if ($this->isResuming()) {
+            return yield from parent::executeTools($toolCallMessage, $state);
+        }
+
+        foreach ($toolCallMessage->getTools() as $tool) {
+            if ($tool instanceof InterruptableTool) {
+                return yield from parent::executeTools($toolCallMessage, $state);
+            }
         }
 
         $tools = $toolCallMessage->getTools();

@@ -18,8 +18,11 @@ use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\HasRunKey;
+use NeuronAI\Tools\InterruptableTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
+use NeuronAI\Workflow\Interrupt\ToolInterrupt;
+use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;
 use Throwable;
 
@@ -52,7 +55,10 @@ class ToolNode extends Node
     {
         // Adding the tool call message to the chat history here allows the middleware to hook
         // the ToolNode before the tool call is added to the history.
-        $this->addToChatHistory($state, $event->toolCallMessage);
+        // On resume the message is already in the (persisted) history, so skip re-adding it.
+        if (!$this->isResuming()) {
+            $this->addToChatHistory($state, $event->toolCallMessage);
+        }
 
         $toolCallResult = yield from $this->executeTools($event->toolCallMessage, $state);
 
@@ -86,6 +92,13 @@ class ToolNode extends Node
      */
     protected function executeSingleTool(ToolInterface $tool, AgentState $state): void
     {
+        // On resume, skip tools that already completed before the interruption:
+        // their result is persisted in the event, re-running them would duplicate
+        // side effects.
+        if ($this->isResuming() && $state->has($this->executedKey($tool))) {
+            return;
+        }
+
         $this->emit('tool-calling', new ToolCalling($tool));
 
         try {
@@ -100,12 +113,31 @@ class ToolNode extends Node
                 throw new ToolRunsExceededException("Tool {$tool->getName()} has been executed too many times - {$runs} - with arguments: ".json_encode($tool->getInputs()));
             }
 
+            // On resume, feed the user's decision back into the tool so its
+            // interrupt() call returns instead of throwing.
+            if ($this->isResuming() && $tool instanceof InterruptableTool) {
+                $tool->setResumeRequest($this->getResumeRequest());
+            }
+
             $tool->execute();
+            $state->set($this->executedKey($tool), true);
+        } catch (ToolInterrupt $interrupt) {
+            // Translate the tool-originated signal into a workflow interruption.
+            throw new WorkflowInterrupt($interrupt->getRequest(), $this, $this->state, $this->event);
         } catch (Throwable $e) {
             $this->handleError($e, $tool);
         } finally {
             $this->emit('tool-called', new ToolCalled($tool));
         }
+    }
+
+    /**
+     * State key recording that a tool finished executing in the current batch,
+     * used to avoid re-execution when resuming after an interruption.
+     */
+    private function executedKey(ToolInterface $tool): string
+    {
+        return '__tool_executed_' . ($tool->getCallId() ?? $tool->getName());
     }
 
     /**
