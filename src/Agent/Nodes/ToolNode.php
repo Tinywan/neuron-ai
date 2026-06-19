@@ -9,23 +9,22 @@ use NeuronAI\Agent\AgentState;
 use NeuronAI\Agent\ChatHistoryHelper;
 use NeuronAI\Agent\Events\AIInferenceEvent;
 use NeuronAI\Agent\Events\ToolCallEvent;
+use NeuronAI\Agent\Tools\ToolInterrupt;
+use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolCallChunk;
 use NeuronAI\Chat\Messages\Stream\Chunks\ToolResultChunk;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Exceptions\ToolRunsExceededException;
-use NeuronAI\Agent\Tools\ToolRejectionHandler;
 use NeuronAI\Observability\Events\ToolCalled;
 use NeuronAI\Observability\Events\ToolCalling;
 use NeuronAI\Tools\HasRunKey;
 use NeuronAI\Tools\InterruptableTool;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolInterface;
-use NeuronAI\Workflow\Interrupt\ToolInterrupt;
 use NeuronAI\Workflow\Interrupt\WorkflowInterrupt;
 use NeuronAI\Workflow\Node;
 use Throwable;
-
 use function json_encode;
 
 /**

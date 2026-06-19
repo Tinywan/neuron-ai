@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronAI\Workflow\Interrupt;
+namespace NeuronAI\Agent\Tools;
 
 use NeuronAI\Exceptions\WorkflowException;
+use NeuronAI\Workflow\Interrupt\InterruptRequest;
 
 /**
  * Internal bridge exception thrown by an interruptable tool to request an

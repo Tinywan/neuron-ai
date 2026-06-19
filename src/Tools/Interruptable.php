@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronAI\Tools;
 
+use NeuronAI\Agent\Tools\ToolInterrupt;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
-use NeuronAI\Workflow\Interrupt\ToolInterrupt;
-
 use function is_callable;
 
 /**
